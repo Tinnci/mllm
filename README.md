@@ -24,7 +24,7 @@ fast and lightweight <ins>multimodal LLM</ins> inference engine for mobile and e
 - Various quantization schemes
 - End-to-end Android app demo
 
-Why on-device multimodal LLM? - It's a key building block for [intelligent personal agent](https://arxiv.org/pdf/2401.05459.pdf), text-based image searching/retrieval, screen VQA, and many more exciting mobile apps, without giving away your private data (chat history, screenshots, taken photos, etc).
+mllm is a lightweight, fast, and easy-to-use (multimodal) on-device LLM inference engine for mobile devices (mainly supporting CPU/NPU), initiated and maintained by the research groups led by [Mengwei Xu](https://xumengwei.github.io/) (BUPT) and [Xuanzhe Liu](http://www.liuxuanzhe.com/) (PKU).
 
 ## Recent update
 - [2024 November 21] Support new model: Phi 3 Vision https://github.com/UbiquitousLearning/mllm/pull/186
