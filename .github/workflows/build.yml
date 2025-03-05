@@ -131,9 +131,15 @@ jobs:
           key: ${{ runner.os }}-build-qnn-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.hpp', 'CMakeLists.txt') }}
           
       - name: Setup Android NDK
+        id: setup-ndk
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r26
+
+      - name: Set Android NDK Environment
+        run: |
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
           
       - name: Install Dependencies
         run: |
@@ -336,8 +342,8 @@ jobs:
           TEST: ${{ inputs.enable_test == 'true' }}
           # QNN特定环境变量
           QNN_SDK_ROOT: ${{ github.workspace }}/src/backends/qnn/sdk
-          ANDROID_NDK: ${{ env.ANDROID_NDK_ROOT }}
-          ANDROID_NDK_ROOT: ${{ env.ANDROID_NDK_ROOT }}
+          ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
           QNN_TARGET_ARCH: aarch64-android
           QNN_ANDROID_BUILD: 1
           QNN_ENABLE_HTP: 1
