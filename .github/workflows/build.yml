@@ -142,7 +142,11 @@ jobs:
           
       - name: Install System Dependencies
         run: |
-          sudo apt-get update
+          sudo apt-get update || {
+            echo "更新包管理器失败"
+            exit 1
+          }
+          
           sudo apt-get install -y \
             clang-14 \
             libc++-dev \
@@ -158,21 +162,42 @@ jobs:
             libnss3 \
             ninja-build \
             cmake \
-            build-essential
+            build-essential || {
+              echo "安装系统依赖失败"
+              exit 1
+            }
           
           # 为了兼容性创建libncurses5的软链接
           if [ ! -f "/usr/lib/x86_64-linux-gnu/libncurses.so.5" ]; then
-            sudo ln -s /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
+            sudo ln -s /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 || {
+              echo "创建libncurses软链接失败"
+              exit 1
+            }
           fi
           
-          # 验证依赖安装
+          # 验证系统依赖
           echo "验证系统依赖..."
           dpkg -l | grep -E "clang-14|libc\+\+|libncurses|flatbuffers|libgtk-3|libasound2|libnss3"
           
-          # 检查编译器版本
+          # 检查编译器和工具版本
+          echo "=== 工具版本信息 ==="
+          cmake --version || exit 1
+          ninja --version || exit 1
+          flatc --version || exit 1
           echo "编译器版本信息："
-          clang++ --version
-          gcc --version
+          clang++ --version || exit 1
+          gcc --version || exit 1
+          
+          # 验证所有必需的库文件存在
+          echo "=== 验证库文件 ==="
+          for lib in libncurses.so.6 libgl1.so libgtk-3.so.0 libasound.so.2 libnss3.so; do
+            if ! ldconfig -p | grep -q $lib; then
+              echo "错误：找不到 $lib"
+              exit 1
+            fi
+          done
+          
+          echo "所有依赖安装和验证完成"
           
       - name: Install Python Dependencies
         run: |
@@ -261,14 +286,33 @@ jobs:
       - name: Build
         run: |
           cd scripts
+          
+          # 验证NDK环境
+          if [ -z "$ANDROID_NDK_ROOT" ]; then
+            echo "错误：ANDROID_NDK_ROOT未设置"
+            exit 1
+          fi
+          
           # 设置编译环境变量
           export CMAKE_BUILD_TYPE=Release
           export ANDROID_ABI=arm64-v8a
           export ANDROID_STL=c++_static
           export ANDROID_NATIVE_API_LEVEL=android-28
+          export ANDROID_NDK=$ANDROID_NDK_ROOT
+          
+          # 验证工具链文件
+          if [ ! -f "$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" ]; then
+            echo "错误：找不到Android工具链文件"
+            ls -la $ANDROID_NDK_ROOT/build/cmake/
+            exit 1
+          fi
           
           # 设置QNN特定的CMake参数
           export CMAKE_ARGS="\
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-28 \
+            -DANDROID_STL=c++_static \
             -DQNN=ON \
             -DDEBUG=OFF \
             -DTEST=OFF \
@@ -277,6 +321,13 @@ jobs:
             -DMLLM_BUILD_XNNPACK_BACKEND=OFF \
             -DMLLM_ENABLE_PYTHON=ON \
             -D_GLIBCXX_USE_CXX11_ABI=1"
+          
+          # 显示编译环境信息
+          echo "=== 编译环境信息 ==="
+          echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
+          echo "CMAKE_TOOLCHAIN_FILE: $ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake"
+          echo "ANDROID_ABI: $ANDROID_ABI"
+          echo "QNN_SDK_ROOT: $QNN_SDK_ROOT"
           
           bash build_android_qnn.sh
           
@@ -295,7 +346,12 @@ jobs:
           # QNN特定环境变量
           QNN_SDK_ROOT: ${{ github.workspace }}/qnn_sdk
           ANDROID_NDK: ${{ env.ANDROID_NDK_ROOT }}
+          ANDROID_NDK_ROOT: ${{ env.ANDROID_NDK_ROOT }}
           QNN_TARGET_ARCH: aarch64-android
+          QNN_ANDROID_BUILD: 1
+          QNN_ENABLE_HTP: 1
+          QNN_ENABLE_GPU: 1
+          QNN_ENABLE_CPU: 1
           # Python开发环境变量
           PYTHONPATH: ${{ github.workspace }}/python/top:${{ github.workspace }}/python/src/_C:${PYTHONPATH}
           
