@@ -1,0 +1,176 @@
+name: "Manual Build"
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: '编译类型'
+        required: true
+        default: 'cpu'
+        type: choice
+        options:
+          - cpu
+          - qnn
+          - xnnpack
+          - all
+      debug_mode:
+        description: '是否启用调试模式'
+        required: true
+        type: choice
+        default: 'false'
+        options:
+          - 'true'
+          - 'false'
+      enable_test:
+        description: '是否启用测试'
+        required: true
+        type: choice
+        default: 'false'
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  build-cpu:
+    if: ${{ github.event.inputs.build_type == 'cpu' || github.event.inputs.build_type == 'all' }}
+    name: Build CPU Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          submodules: true
+          
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+          
+      - name: Cache Build
+        uses: actions/cache@v3
+        with:
+          path: |
+            build
+            build-arm
+          key: ${{ runner.os }}-build-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.hpp', 'CMakeLists.txt') }}
+          
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential ninja-build
+          
+      - name: Build
+        run: |
+          cd scripts
+          bash build.sh
+        env:
+          DEBUG: ${{ github.event.inputs.debug_mode }}
+          TEST: ${{ github.event.inputs.enable_test }}
+          
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: mllm-cpu-build
+          path: bin/
+          
+  build-qnn:
+    if: ${{ github.event.inputs.build_type == 'qnn' || github.event.inputs.build_type == 'all' }}
+    name: Build QNN Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          submodules: true
+          
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+          
+      - name: Cache Build
+        uses: actions/cache@v3
+        with:
+          path: |
+            build-arm-qnn
+          key: ${{ runner.os }}-build-qnn-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.hpp', 'CMakeLists.txt') }}
+          
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26
+          
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential ninja-build
+          
+      - name: Download QNN SDK
+        run: |
+          # 这里需要根据实际情况下载和设置QNN SDK
+          echo "请根据实际情况配置QNN SDK下载和设置步骤"
+          exit 1
+          
+      - name: Build
+        run: |
+          cd scripts
+          bash build_android_qnn.sh
+        env:
+          QNN_SDK_ROOT: ${{ github.workspace }}/qnn_sdk
+          DEBUG: ${{ github.event.inputs.debug_mode }}
+          TEST: ${{ github.event.inputs.enable_test }}
+          
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: mllm-qnn-build
+          path: bin/
+          
+  build-xnnpack:
+    if: ${{ github.event.inputs.build_type == 'xnnpack' || github.event.inputs.build_type == 'all' }}
+    name: Build XNNPACK Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          submodules: true
+          
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+          
+      - name: Cache Build
+        uses: actions/cache@v3
+        with:
+          path: |
+            build-arm-xp
+          key: ${{ runner.os }}-build-xnnpack-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.hpp', 'CMakeLists.txt') }}
+          
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26
+          
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential ninja-build
+          
+      - name: Build
+        run: |
+          cd scripts
+          bash build_android_xp.sh
+        env:
+          DEBUG: ${{ github.event.inputs.debug_mode }}
+          TEST: ${{ github.event.inputs.enable_test }}
+          
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: mllm-xnnpack-build
+          path: bin/ 
