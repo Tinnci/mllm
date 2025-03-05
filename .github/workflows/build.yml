@@ -71,7 +71,7 @@ jobs:
           TEST: ${{ inputs.enable_test == 'true' }}
           
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mllm-cpu-build
           path: bin/
@@ -124,7 +124,7 @@ jobs:
           TEST: ${{ inputs.enable_test == 'true' }}
           
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mllm-qnn-build
           path: bin/
@@ -170,7 +170,7 @@ jobs:
           TEST: ${{ inputs.enable_test == 'true' }}
           
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mllm-xnnpack-build
           path: bin/ 
