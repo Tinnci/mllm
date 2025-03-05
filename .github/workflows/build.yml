@@ -152,7 +152,13 @@ jobs:
             libc++-dev \
             libncurses6 \
             libncurses-dev \
-            libgl1 \
+            libgl1-mesa-dev \
+            libgl1-mesa-glx \
+            libglu1-mesa-dev \
+            mesa-common-dev \
+            libglvnd-dev \
+            libglx-dev \
+            libglx-mesa0 \
             flatbuffers-compiler \
             libflatbuffers-dev \
             rename \
@@ -177,7 +183,7 @@ jobs:
           
           # 验证系统依赖
           echo "验证系统依赖..."
-          dpkg -l | grep -E "clang-14|libc\+\+|libncurses|flatbuffers|libgtk-3|libasound2|libnss3"
+          dpkg -l | grep -E "clang-14|libc\+\+|libncurses|flatbuffers|libgtk-3|libasound2|libnss3|libgl|mesa"
           
           # 检查编译器和工具版本
           echo "=== 工具版本信息 ==="
@@ -190,7 +196,7 @@ jobs:
           
           # 验证所有必需的库文件存在
           echo "=== 验证库文件 ==="
-          for lib in libncurses.so.6 libgl1.so libgtk-3.so.0 libasound.so.2 libnss3.so; do
+          for lib in libncurses.so.6 libGL.so.1 libGLX.so.0 libGLU.so.1 libgtk-3.so.0 libasound.so.2 libnss3.so; do
             if ! ldconfig -p | grep -q $lib; then
               echo "错误：找不到 $lib"
               exit 1
