@@ -49,6 +49,22 @@ jobs:
           python-version: '3.9'
           cache: 'pip'
           
+      - name: Install Python Development Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install numpy==1.26.4 \
+                               protobuf==3.19.6 \
+                               packaging==24.0 \
+                               PyYAML==5.3 \
+                               six==1.16.0 \
+                               typing-extensions==4.10.0 \
+                               matplotlib==3.3.4 \
+                               opencv-python==4.5.4.58 \
+                               Pillow==10.2.0 \
+                               pybind11==2.11.1 \
+                               pytest==8.0.0 \
+                               pybind11-stubgen==2.5
+          
       - name: Cache Build
         uses: actions/cache@v3
         with:
@@ -91,6 +107,22 @@ jobs:
           python-version: '3.9'
           cache: 'pip'
           
+      - name: Install Python Development Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install numpy==1.26.4 \
+                               protobuf==3.19.6 \
+                               packaging==24.0 \
+                               PyYAML==5.3 \
+                               six==1.16.0 \
+                               typing-extensions==4.10.0 \
+                               matplotlib==3.3.4 \
+                               opencv-python==4.5.4.58 \
+                               Pillow==10.2.0 \
+                               pybind11==2.11.1 \
+                               pytest==8.0.0 \
+                               pybind11-stubgen==2.5
+          
       - name: Cache Build
         uses: actions/cache@v3
         with:
@@ -108,20 +140,146 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake build-essential ninja-build
           
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang-14 \
+            libc++-dev \
+            libncurses5 \
+            libgl1 \
+            flatbuffers-compiler \
+            libflatbuffers-dev \
+            rename \
+            make \
+            libgtk-3-dev \
+            libasound2-dev \
+            libnss3
+          
+      - name: Install Python Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install numpy==1.26.4 \
+                               protobuf==3.19.6 \
+                               packaging==24.0 \
+                               PyYAML==5.3 \
+                               six==1.16.0 \
+                               typing-extensions==4.10.0 \
+                               matplotlib==3.3.4 \
+                               opencv-python==4.5.4.58 \
+                               Pillow==10.2.0
+          
       - name: Download QNN SDK
         run: |
-          # 这里需要根据实际情况下载和设置QNN SDK
-          echo "请根据实际情况配置QNN SDK下载和设置步骤"
-          exit 1
+          # 创建QNN SDK目录
+          mkdir -p ${{ github.workspace }}/qnn_sdk
+          cd ${{ github.workspace }}/qnn_sdk
+          
+          # 下载QNN SDK
+          echo "正在下载QNN SDK..."
+          curl -L -o qnn_sdk.zip \
+               "https://apigwx-aws.qualcomm.com/qsc/public/v1/api/download/software/tool/qualcomm_neural_processing_sdk_public/2.27.0.240926/Linux/qualcomm_neural_processing_sdk_public.Core.2.27.0.240926.Linux-AnyCPU.zip"
+          
+          # 解压SDK并确保正确的目录结构
+          unzip -q qnn_sdk.zip
+          rm qnn_sdk.zip
+          
+          # 移动文件到正确的位置（保持目录结构）
+          cp -r qairt/2.27.0.240926/* .
+          rm -rf qairt
+          
+          # 验证关键目录存在
+          if [ ! -d "lib" ] || [ ! -d "include" ] || [ ! -d "bin" ]; then
+            echo "错误：QNN SDK目录结构不完整"
+            ls -la
+            exit 1
+          fi
+          
+          # 验证Android特定目录
+          if [ ! -d "lib/aarch64-android" ]; then
+            echo "错误：缺少Android ARM64库文件"
+            exit 1
+          fi
+          
+          # 设置QNN环境变量
+          {
+            echo "QNN_SDK_ROOT=${{ github.workspace }}/qnn_sdk"
+            echo "PYTHONPATH=${{ github.workspace }}/qnn_sdk/lib/python:$PYTHONPATH"
+            echo "LD_LIBRARY_PATH=${{ github.workspace }}/qnn_sdk/lib/x86_64-linux-clang:$LD_LIBRARY_PATH"
+            echo "PATH=${{ github.workspace }}/qnn_sdk/bin/x86_64-linux-clang:$PATH"
+            
+            # Android特定配置
+            echo "ANDROID_NDK=$ANDROID_NDK_ROOT"
+            echo "QNN_ANDROID_BUILD=1"
+            echo "QNN_TARGET_ARCH=aarch64-android"
+            echo "QNN_ENABLE_HTP=1"
+            echo "QNN_ENABLE_GPU=1"
+            echo "QNN_ENABLE_CPU=1"
+            
+            # 设置编译器路径
+            echo "CC=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang"
+            echo "CXX=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang++"
+          } >> $GITHUB_ENV
+          
+          # 运行环境设置脚本
+          source ${{ github.workspace }}/qnn_sdk/bin/envsetup.sh
+          
+          # 检查环境设置
+          ${{ github.workspace }}/qnn_sdk/bin/envcheck -n
+          
+          # 验证Android工具链
+          if [ ! -f "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang" ]; then
+            echo "错误：Android NDK工具链未正确设置"
+            exit 1
+          fi
+          
+          # 显示配置信息
+          echo "=== QNN SDK配置信息 ==="
+          echo "QNN_SDK_ROOT: $QNN_SDK_ROOT"
+          echo "ANDROID_NDK: $ANDROID_NDK_ROOT"
+          echo "QNN_TARGET_ARCH: aarch64-android"
+          echo "启用的后端: CPU, GPU, HTP"
           
       - name: Build
         run: |
           cd scripts
+          # 设置编译环境变量
+          export CMAKE_BUILD_TYPE=Release
+          export ANDROID_ABI=arm64-v8a
+          export ANDROID_STL=c++_static
+          export ANDROID_NATIVE_API_LEVEL=android-28
+          
+          # 设置QNN特定的CMake参数
+          export CMAKE_ARGS="\
+            -DQNN=ON \
+            -DDEBUG=OFF \
+            -DTEST=OFF \
+            -DQUANT=OFF \
+            -DQNN_VALIDATE_NODE=ON \
+            -DMLLM_BUILD_XNNPACK_BACKEND=OFF \
+            -DMLLM_ENABLE_PYTHON=ON \
+            -D_GLIBCXX_USE_CXX11_ABI=1"
+          
           bash build_android_qnn.sh
+          
+          # 运行开发工作流
+          if [ "${{ inputs.debug_mode }}" == "true" ]; then
+            python3 workflow_dev.py --dev
+          fi
+          
+          # 运行测试
+          if [ "${{ inputs.enable_test }}" == "true" ]; then
+            python3 workflow_dev.py --test "python,c++"
+          fi
         env:
-          QNN_SDK_ROOT: ${{ github.workspace }}/qnn_sdk
           DEBUG: ${{ inputs.debug_mode == 'true' }}
           TEST: ${{ inputs.enable_test == 'true' }}
+          # QNN特定环境变量
+          QNN_SDK_ROOT: ${{ github.workspace }}/qnn_sdk
+          ANDROID_NDK: ${{ env.ANDROID_NDK_ROOT }}
+          QNN_TARGET_ARCH: aarch64-android
+          # Python开发环境变量
+          PYTHONPATH: ${{ github.workspace }}/python/top:${{ github.workspace }}/python/src/_C:${PYTHONPATH}
           
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -143,6 +301,22 @@ jobs:
         with:
           python-version: '3.9'
           cache: 'pip'
+          
+      - name: Install Python Development Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install numpy==1.26.4 \
+                               protobuf==3.19.6 \
+                               packaging==24.0 \
+                               PyYAML==5.3 \
+                               six==1.16.0 \
+                               typing-extensions==4.10.0 \
+                               matplotlib==3.3.4 \
+                               opencv-python==4.5.4.58 \
+                               Pillow==10.2.0 \
+                               pybind11==2.11.1 \
+                               pytest==8.0.0 \
+                               pybind11-stubgen==2.5
           
       - name: Cache Build
         uses: actions/cache@v3
