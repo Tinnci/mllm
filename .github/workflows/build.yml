@@ -146,7 +146,8 @@ jobs:
           sudo apt-get install -y \
             clang-14 \
             libc++-dev \
-            libncurses5 \
+            libncurses6 \
+            libncurses-dev \
             libgl1 \
             flatbuffers-compiler \
             libflatbuffers-dev \
@@ -154,7 +155,24 @@ jobs:
             make \
             libgtk-3-dev \
             libasound2-dev \
-            libnss3
+            libnss3 \
+            ninja-build \
+            cmake \
+            build-essential
+          
+          # 为了兼容性创建libncurses5的软链接
+          if [ ! -f "/usr/lib/x86_64-linux-gnu/libncurses.so.5" ]; then
+            sudo ln -s /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
+          fi
+          
+          # 验证依赖安装
+          echo "验证系统依赖..."
+          dpkg -l | grep -E "clang-14|libc\+\+|libncurses|flatbuffers|libgtk-3|libasound2|libnss3"
+          
+          # 检查编译器版本
+          echo "编译器版本信息："
+          clang++ --version
+          gcc --version
           
       - name: Install Python Dependencies
         run: |
