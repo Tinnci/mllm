@@ -208,9 +208,9 @@ jobs:
           
       - name: Download QNN SDK
         run: |
-          # 创建QNN SDK目录
-          mkdir -p ${{ github.workspace }}/qnn_sdk
-          cd ${{ github.workspace }}/qnn_sdk
+          # 创建正确的目标目录
+          mkdir -p ${{ github.workspace }}/src/backends/qnn/sdk
+          cd ${{ github.workspace }}/src/backends/qnn/sdk
           
           # 下载QNN SDK
           echo "正在下载QNN SDK..."
@@ -219,11 +219,8 @@ jobs:
           
           # 解压SDK并确保正确的目录结构
           unzip -q qnn_sdk.zip
-          rm qnn_sdk.zip
-          
-          # 移动文件到正确的位置（保持目录结构）
           cp -r qairt/2.27.0.240926/* .
-          rm -rf qairt
+          rm -rf qairt qnn_sdk.zip
           
           # 验证关键目录存在
           if [ ! -d "lib" ] || [ ! -d "include" ] || [ ! -d "bin" ]; then
@@ -240,10 +237,10 @@ jobs:
           
           # 设置QNN环境变量
           {
-            echo "QNN_SDK_ROOT=${{ github.workspace }}/qnn_sdk"
-            echo "PYTHONPATH=${{ github.workspace }}/qnn_sdk/lib/python:$PYTHONPATH"
-            echo "LD_LIBRARY_PATH=${{ github.workspace }}/qnn_sdk/lib/x86_64-linux-clang:$LD_LIBRARY_PATH"
-            echo "PATH=${{ github.workspace }}/qnn_sdk/bin/x86_64-linux-clang:$PATH"
+            echo "QNN_SDK_ROOT=${{ github.workspace }}/src/backends/qnn/sdk"
+            echo "PYTHONPATH=${{ github.workspace }}/src/backends/qnn/sdk/lib/python:$PYTHONPATH"
+            echo "LD_LIBRARY_PATH=${{ github.workspace }}/src/backends/qnn/sdk/lib/x86_64-linux-clang:$LD_LIBRARY_PATH"
+            echo "PATH=${{ github.workspace }}/src/backends/qnn/sdk/bin/x86_64-linux-clang:$PATH"
             
             # Android特定配置
             echo "ANDROID_NDK=$ANDROID_NDK_ROOT"
@@ -259,10 +256,10 @@ jobs:
           } >> $GITHUB_ENV
           
           # 运行环境设置脚本
-          source ${{ github.workspace }}/qnn_sdk/bin/envsetup.sh
+          source ${{ github.workspace }}/src/backends/qnn/sdk/bin/envsetup.sh
           
           # 检查环境设置
-          ${{ github.workspace }}/qnn_sdk/bin/envcheck -n
+          ${{ github.workspace }}/src/backends/qnn/sdk/bin/envcheck -n
           
           # 验证Android工具链
           if [ ! -f "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang" ]; then
@@ -338,7 +335,7 @@ jobs:
           DEBUG: ${{ inputs.debug_mode == 'true' }}
           TEST: ${{ inputs.enable_test == 'true' }}
           # QNN特定环境变量
-          QNN_SDK_ROOT: ${{ github.workspace }}/qnn_sdk
+          QNN_SDK_ROOT: ${{ github.workspace }}/src/backends/qnn/sdk
           ANDROID_NDK: ${{ env.ANDROID_NDK_ROOT }}
           ANDROID_NDK_ROOT: ${{ env.ANDROID_NDK_ROOT }}
           QNN_TARGET_ARCH: aarch64-android
@@ -353,7 +350,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mllm-qnn-build
-          path: bin/
+          path: bin-arm/
+          if-no-files-found: warn
           
   build-xnnpack:
     if: ${{ github.event.inputs.build_type == 'xnnpack' || github.event.inputs.build_type == 'all' }}
@@ -415,4 +413,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mllm-xnnpack-build
-          path: bin/ 
+          path: bin-arm/
+          if-no-files-found: warn 
