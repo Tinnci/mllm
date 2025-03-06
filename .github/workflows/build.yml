@@ -409,4 +409,112 @@ jobs:
         with:
           name: mllm-xnnpack-build
           path: bin-arm/
-          if-no-files-found: warn 
+          if-no-files-found: warn
+          
+  build-android-jni:
+    if: ${{ github.event.inputs.build_type == 'qnn' || github.event.inputs.build_type == 'all' }}
+    name: Build Android JNI Library
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          submodules: true
+          
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+          
+      - name: Install Python Development Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install numpy==1.26.4 \
+                               protobuf==3.19.6 \
+                               packaging==24.0 \
+                               PyYAML==5.3 \
+                               six==1.16.0 \
+                               typing-extensions==4.10.0 \
+                               matplotlib==3.3.4 \
+                               opencv-python==4.5.4.58 \
+                               Pillow==10.2.0
+          
+      - name: Cache Build
+        uses: actions/cache@v3
+        with:
+          path: |
+            build-arm-app
+          key: ${{ runner.os }}-build-jni-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.hpp', 'CMakeLists.txt') }}
+          
+      - name: Setup Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26
+
+      - name: Set Android NDK Environment
+        run: |
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential ninja-build clang-14
+          
+      - name: Download QNN SDK
+        run: |
+          mkdir -p ${{ github.workspace }}/src/backends/qnn/sdk
+          cd ${{ github.workspace }}/src/backends/qnn/sdk
+          
+          curl -L -o qnn_sdk.zip \
+               "https://apigwx-aws.qualcomm.com/qsc/public/v1/api/download/software/tool/qualcomm_neural_processing_sdk_public/2.27.0.240926/Linux/qualcomm_neural_processing_sdk_public.Core.2.27.0.240926.Linux-AnyCPU.zip"
+          
+          unzip -q qnn_sdk.zip
+          cp -r qairt/2.27.0.240926/* .
+          rm -rf qairt qnn_sdk.zip
+          
+          if [ ! -d "lib/aarch64-android" ]; then
+            echo "错误：缺少Android ARM64库文件"
+            exit 1
+          fi
+          
+      - name: Build JNI Library
+        run: |
+          mkdir -p build-arm-app
+          cd build-arm-app
+          
+          cmake .. \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DANDROID_ABI="arm64-v8a" \
+          -DANDROID_NATIVE_API_LEVEL=android-28 \
+          -DNATIVE_LIBRARY_OUTPUT=. \
+          -DNATIVE_INCLUDE_OUTPUT=. \
+          -DARM=ON \
+          -DAPK=ON \
+          -DQNN=ON \
+          -DDEBUG=OFF \
+          -DTEST=OFF \
+          -DQUANT=OFF \
+          -DQNN_VALIDATE_NODE=ON \
+          -DMLLM_BUILD_XNNPACK_BACKEND=OFF
+          
+          make mllm_lib -j$(nproc)
+          
+          # 验证构建输出
+          if [ ! -f "libmllm_lib.a" ]; then
+            echo "错误：JNI 库构建失败"
+            exit 1
+          fi
+        env:
+          QNN_SDK_ROOT: ${{ github.workspace }}/src/backends/qnn/sdk
+          ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          
+      - name: Upload JNI Library
+        uses: actions/upload-artifact@v4
+        with:
+          name: mllm-android-jni
+          path: build-arm-app/libmllm_lib.a
+          if-no-files-found: error 
