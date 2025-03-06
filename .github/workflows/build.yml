@@ -12,6 +12,7 @@ on:
           - cpu
           - qnn
           - xnnpack
+          - jni
           - all
       debug_mode:
         description: '是否启用调试模式'
@@ -26,6 +27,14 @@ on:
         required: true
         type: choice
         default: 'false'
+        options:
+          - 'true'
+          - 'false'
+      enable_qnn:
+        description: 'JNI库是否启用QNN'
+        required: true
+        type: choice
+        default: 'true'
         options:
           - 'true'
           - 'false'
@@ -412,7 +421,7 @@ jobs:
           if-no-files-found: warn
           
   build-android-jni:
-    if: ${{ github.event.inputs.build_type == 'qnn' || github.event.inputs.build_type == 'all' }}
+    if: ${{ github.event.inputs.build_type == 'jni' || github.event.inputs.build_type == 'all' }}
     name: Build Android JNI Library
     runs-on: ubuntu-latest
     steps:
@@ -463,6 +472,7 @@ jobs:
           sudo apt-get install -y cmake build-essential ninja-build clang-14
           
       - name: Download QNN SDK
+        if: ${{ inputs.enable_qnn == 'true' }}
         run: |
           mkdir -p ${{ github.workspace }}/src/backends/qnn/sdk
           cd ${{ github.workspace }}/src/backends/qnn/sdk
@@ -493,11 +503,11 @@ jobs:
           -DNATIVE_INCLUDE_OUTPUT=. \
           -DARM=ON \
           -DAPK=ON \
-          -DQNN=ON \
+          -DQNN=${{ inputs.enable_qnn == 'true' }} \
           -DDEBUG=OFF \
           -DTEST=OFF \
           -DQUANT=OFF \
-          -DQNN_VALIDATE_NODE=ON \
+          -DQNN_VALIDATE_NODE=${{ inputs.enable_qnn == 'true' }} \
           -DMLLM_BUILD_XNNPACK_BACKEND=OFF
           
           make mllm_lib -j$(nproc)
