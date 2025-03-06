@@ -1,0 +1,114 @@
+name: "Model Conversion"
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_url:
+        description: '模型链接 (Hugging Face)'
+        required: true
+        type: string
+      model_type:
+        description: '模型类型'
+        required: true
+        type: choice
+        default: 'safetensor'
+        options:
+          - 'safetensor'
+          - 'torch'
+      quantize_type:
+        description: '量化类型'
+        required: true
+        type: choice
+        default: 'none'
+        options:
+          - 'none'
+          - 'Q4_0'
+          - 'Q4_K'
+      vocab_type:
+        description: '词表类型'
+        required: true
+        type: choice
+        default: 'Unigram'
+        options:
+          - 'Unigram'
+          - 'BPE'
+
+permissions:
+  contents: read
+
+jobs:
+  convert-model:
+    name: Convert Model
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          submodules: true
+          
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+          
+      - name: Install Dependencies
+        run: |
+          cd tools/convertor
+          pip install -r requirements.txt
+          pip install huggingface_hub
+          
+      - name: Download Model
+        run: |
+          python3 -c "
+          from huggingface_hub import snapshot_download
+          repo_id = '${{ inputs.model_url }}'.split('/')[-2] + '/' + '${{ inputs.model_url }}'.split('/')[-1]
+          snapshot_download(repo_id=repo_id, local_dir='model', ignore_patterns=['*.md', '*.txt'])
+          "
+          
+      - name: Convert Model
+        run: |
+          cd tools/convertor
+          
+          # 查找模型文件
+          if [ "${{ inputs.model_type }}" = "safetensor" ]; then
+            if [ -f "../../model/model.safetensors.index.json" ]; then
+              MODEL_INPUT="../../model/model.safetensors.index.json"
+            else
+              MODEL_INPUT=$(find ../../model -name "*.safetensors" | head -n 1)
+            fi
+          else
+            if [ -f "../../model/pytorch_model.bin.index.json" ]; then
+              MODEL_INPUT="../../model/pytorch_model.bin.index.json"
+            else
+              MODEL_INPUT=$(find ../../model -name "*.bin" | head -n 1)
+            fi
+          fi
+          
+          # 转换模型
+          python convert.py \
+            --input_model="$MODEL_INPUT" \
+            --output_model="../../model/model.mllm" \
+            --type=${{ inputs.model_type }}
+          
+          # 转换词表
+          if [ -f "../../model/tokenizer.json" ]; then
+            python vocab.py \
+              --input_file="../../model/tokenizer.json" \
+              --output_file="../../model/vocab.mllm" \
+              --type=${{ inputs.vocab_type }}
+          fi
+          
+      - name: Quantize Model
+        if: ${{ inputs.quantize_type != 'none' }}
+        run: |
+          cd bin
+          chmod +x ./quantize
+          ./quantize ../model/model.mllm ../model/model_${{ inputs.quantize_type }}.mllm ${{ inputs.quantize_type }}
+          
+      - name: Upload Model Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: converted-model
+          path: |
+            model/*.mllm
+          if-no-files-found: error
