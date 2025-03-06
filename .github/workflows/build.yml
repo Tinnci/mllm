@@ -282,51 +282,40 @@ jobs:
           
       - name: Build
         run: |
-          cd scripts
-          
-          # 验证NDK环境
-          if [ -z "$ANDROID_NDK_ROOT" ]; then
-            echo "错误：ANDROID_NDK_ROOT未设置"
+          # 验证 QNN SDK 目录结构
+          if [ ! -d "${{ github.workspace }}/src/backends/qnn/sdk" ]; then
+            echo "错误：QNN SDK 目录不存在"
             exit 1
           fi
           
-          # 设置编译环境变量
-          export CMAKE_BUILD_TYPE=Release
-          export ANDROID_ABI=arm64-v8a
-          export ANDROID_STL=c++_static
-          export ANDROID_NATIVE_API_LEVEL=android-28
-          export ANDROID_NDK=$ANDROID_NDK_ROOT
+          # 设置 QNN 环境变量
+          export QNN_SDK_ROOT="${{ github.workspace }}/src/backends/qnn/sdk"
+          export QNN_TARGET_ARCH="aarch64-android"
+          export QNN_ENABLE_HTP=1
+          export QNN_ENABLE_GPU=1
+          export QNN_ENABLE_CPU=1
           
-          # 验证工具链文件
+          # 验证 Android NDK 工具链
           if [ ! -f "$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" ]; then
-            echo "错误：找不到Android工具链文件"
+            echo "错误：找不到 Android 工具链文件"
             ls -la $ANDROID_NDK_ROOT/build/cmake/
             exit 1
           fi
           
-          # 设置QNN特定的CMake参数
-          export CMAKE_ARGS="\
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-28 \
-            -DANDROID_STL=c++_static \
-            -DQNN=ON \
-            -DDEBUG=OFF \
-            -DTEST=OFF \
-            -DQUANT=OFF \
-            -DQNN_VALIDATE_NODE=ON \
-            -DMLLM_BUILD_XNNPACK_BACKEND=OFF \
-            -DMLLM_ENABLE_PYTHON=ON \
-            -D_GLIBCXX_USE_CXX11_ABI=1"
-          
-          # 显示编译环境信息
-          echo "=== 编译环境信息 ==="
-          echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
-          echo "CMAKE_TOOLCHAIN_FILE: $ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake"
-          echo "ANDROID_ABI: $ANDROID_ABI"
-          echo "QNN_SDK_ROOT: $QNN_SDK_ROOT"
-          
+          cd scripts
           bash build_android_qnn.sh
+          
+          # 验证编译输出
+          cd ../build-arm-qnn
+          if [ ! -f "demo_qwen_npu" ] && [ ! -f "main_qwen_npu" ]; then
+            echo "错误：QNN 目标编译失败，未找到期望的输出文件"
+            ls -la
+            exit 1
+          fi
+          
+          # 创建输出目录并复制文件
+          mkdir -p ../bin-arm
+          cp demo_qwen_npu main_qwen_npu ../bin-arm/ 2>/dev/null || :
           
           # 运行开发工作流
           if [ "${{ inputs.debug_mode }}" == "true" ]; then
